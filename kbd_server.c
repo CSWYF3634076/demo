@@ -212,8 +212,6 @@ static void sendXdndLeave(Display *disp, Window source, Window target)
 
 
 int main(int argc, char **argv) {
-    signal(SIGTERM, sig_handler);
-    signal(SIGINT, sig_handler);
     DBusConnection *conn;
     int ret;
 

@@ -10,7 +10,10 @@
     <option name="reloaded" value="true" />
   </component>
   <component name="CMakeRunConfigurationManager">
-    <generated />
+    <generated>
+      <config projectName="demo" targetName="demo" />
+      <config projectName="demo" targetName="kbd_server" />
+    </generated>
   </component>
   <component name="CMakeSettings">
     <configurations>
@@ -19,7 +22,22 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="33b80016-cb80-438a-b31a-46665073d353" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/demo.dir/compiler_depend.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/demo.dir/compiler_depend.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/demo.dir/kbd_client.c.o" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/demo.dir/kbd_client.c.o" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/kbd_server.dir/compiler_depend.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/kbd_server.dir/compiler_depend.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/kbd_server.dir/kbd_server.c.o" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/kbd_server.dir/kbd_server.c.o" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/kbd_server.dir/kbd_server.c.o.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/kbd_server.dir/kbd_server.c.o.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/demo" beforeDir="false" afterPath="$PROJECT_DIR$/build/demo" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/kbd_server" beforeDir="false" afterPath="$PROJECT_DIR$/build/kbd_server" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmake-build-debug/.cmake/api/v1/reply/index-2023-04-03T03-45-25-0664.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmake-build-debug/.ninja_deps" beforeDir="false" afterPath="$PROJECT_DIR$/cmake-build-debug/.ninja_deps" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmake-build-debug/.ninja_log" beforeDir="false" afterPath="$PROJECT_DIR$/cmake-build-debug/.ninja_log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmake-build-debug/CMakeFiles/kbd_server.dir/kbd_server.c.o" beforeDir="false" afterPath="$PROJECT_DIR$/cmake-build-debug/CMakeFiles/kbd_server.dir/kbd_server.c.o" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmake-build-debug/Testing/Temporary/LastTest.log" beforeDir="false" afterPath="$PROJECT_DIR$/cmake-build-debug/Testing/Temporary/LastTest.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmake-build-debug/kbd_server" beforeDir="false" afterPath="$PROJECT_DIR$/cmake-build-debug/kbd_server" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/kbd_server.c" beforeDir="false" afterPath="$PROJECT_DIR$/kbd_server.c" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -54,7 +72,7 @@
     &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
     &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
     &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/zhangxg/github/demo&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/zhangxg/mybak/demo&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -64,12 +82,7 @@
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
-  <component name="RunManager" selected="CMake Application.demo">
-    <configuration default="true" type="CLionExternalRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true">
-      <method v="2">
-        <option name="CLION.EXTERNAL.BUILD" enabled="true" />
-      </method>
-    </configuration>
+  <component name="RunManager" selected="CMake Application.kbd_server">
     <configuration name="demo" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="demo" TARGET_NAME="demo" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="demo" RUN_TARGET_NAME="demo">
       <method v="2">
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
@@ -98,6 +111,8 @@
       <workItem from="1680491142764" duration="238000" />
       <workItem from="1680491407868" duration="658000" />
       <workItem from="1680492075759" duration="757000" />
+      <workItem from="1680498943349" duration="1069000" />
+      <workItem from="1682076993006" duration="33000" />
     </task>
     <servers />
   </component>
