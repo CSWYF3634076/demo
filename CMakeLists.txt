@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.24)
 project(demo C)
 
 set(CMAKE_C_STANDARD 11)
-
 include_directories(.)
 find_package(PkgConfig REQUIRED) # Include functions provided by PkgConfig module.
 
@@ -29,4 +28,5 @@ target_link_libraries(demo ${DBUS_LIBRARIES}  ${X11_LIBRARIES})
 
 add_executable(kbd_server
         kbd_server.c)
-target_link_libraries(kbd_server ${DBUS_LIBRARIES}  ${X11_LIBRARIES})
+
+target_link_libraries(kbd_server ${DBUS_LIBRARIES}  ${X11_LIBRARIES} -lpthread -lm)

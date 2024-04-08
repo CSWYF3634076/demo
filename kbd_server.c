@@ -12,6 +12,8 @@
 #include <dbus/dbus.h>
 #include <X11/XKBlib.h>
 #include <signal.h>
+#include <unistd.h>
+#include <pthread.h>
 
 const char *const INTERFACE_NAME = "test.localhost.xdnd_interface";
 const char *const SERVER_BUS_NAME = "test.localhost.xdnd_server";
@@ -20,11 +22,17 @@ const char *const METHOD_NAME = "xdnd";
 
 DBusError dbus_error;
 static Bool running = True;
-
+char* absolutePathPrefix;
 // Atom definitions
 static Atom XdndAware, XA_ATOM, XdndEnter, XdndPosition, XdndActionCopy, XdndLeave, XdndStatus, XdndDrop,
         XdndSelection, XDND_DATA, XdndTypeList, XdndFinished, WM_PROTOCOLS, WM_DELETE_WINDOW, typesWeAccept[6];
 
+int stopSendFinishedToMySelf = 0;
+struct XdndEve{
+    Display *disp;
+    Window source;
+    Window target;
+};
 
 void print_dbus_error(char *str);
 void sig_handler(int signum) {
@@ -75,7 +83,8 @@ static Window getWindowPointerIsOver(Display *disp, Window startingWindow,
             XGetWindowAttributes(disp, childList[i], &childAttrs);
 
             // Check if cursor is in this window
-            if (p_rootX >= originX + childAttrs.x &&
+            if (childAttrs.map_state & IsViewable &&childAttrs.depth !=0 &&
+                    p_rootX >= originX + childAttrs.x &&
                 p_rootX < originX + childAttrs.x + childAttrs.width &&
                 p_rootY >= originY + childAttrs.y &&
                 p_rootY < originY + childAttrs.y + childAttrs.height) {
@@ -134,7 +143,7 @@ static void sendSelectionNotify(Display *disp, XSelectionRequestEvent *selection
             fprintf(stderr, "failed XSendEvent propertyData\n");
             exit(-1);
         }
-
+    printf("模拟拖拽: sendSelectionNotify succeed\n");
 }
 // This sends the XdndEnter message which initiates the XDND protocol exchange
 static void sendXdndEnter(Display *disp, int xdndVersion, Window source, Window target)
@@ -186,10 +195,7 @@ static void sendXdndPosition(Display *disp, Window source, Window target, int ti
         }
 
 }
-struct a {
-    int x;
-    char y;
-};
+
 
 // This is sent by the source when the exchange is abandoned
 static void sendXdndLeave(Display *disp, Window source, Window target)
@@ -212,9 +218,240 @@ static void sendXdndLeave(Display *disp, Window source, Window target)
         }
 
 }
+// This is sent by the target when the exchange has completed
+static void sendXdndFinished(Display *disp, Window source, Window target)
+{
+        // Declare message struct and populate its values
+        XEvent message;
+        memset(&message, 0, sizeof(message));
+        message.xclient.type = ClientMessage;
+        message.xclient.display = disp;
+        message.xclient.window = target;
+        message.xclient.message_type = XdndFinished;
+        message.xclient.format = 32;
+        message.xclient.data.l[0] = source;
+        message.xclient.data.l[1] = 1;
+        message.xclient.data.l[2] = XdndActionCopy;
 
+        // Send it to target window
+        if (XSendEvent(disp, target, False, 0, &message) == 0){
+            fprintf(stderr, "failed sendXdndFinished XSendEvent \n");
+            exit(-1);
+        }
+
+}
+void *threadFunXdndFinished(void* arg){
+    if(arg != NULL){
+        printf("进入线程\n");
+        struct XdndEve* xdndEve = arg;
+        while(!stopSendFinishedToMySelf){
+            sleep(2);
+            sendXdndFinished(xdndEve->disp,xdndEve->source,xdndEve->target);
+            printf("对自己发送了sendXdndFinished\n");
+        }
+    }
+    return NULL;
+}
+
+int XLogic(char* path , int x , int y){
+
+    stopSendFinishedToMySelf = 0;
+    Display *dpy = XOpenDisplay(NULL);
+    int x11_fd ;
+    const char *procStr = "Stuart";
+    Window wind;
+    XEvent event;
+    // Define atoms
+    XdndAware = XInternAtom(dpy, "XdndAware", False);
+    XA_ATOM = XInternAtom(dpy, "XA_ATOM", False);
+    XdndEnter = XInternAtom(dpy, "XdndEnter", False);
+    XdndPosition = XInternAtom(dpy, "XdndPosition", False);
+    XdndActionCopy = XInternAtom(dpy, "XdndActionCopy", False);
+    XdndLeave = XInternAtom(dpy, "XdndLeave", False);
+    XdndStatus = XInternAtom(dpy, "XdndStatus", False);
+    XdndDrop = XInternAtom(dpy, "XdndDrop", False);
+    XdndSelection = XInternAtom(dpy, "XdndSelection", False);
+    XDND_DATA = XInternAtom(dpy, "XDND_DATA", False);
+    XdndTypeList = XInternAtom(dpy, "XdndTypeList", False);
+    XdndFinished = XInternAtom(dpy, "XdndFinished", False);
+    WM_PROTOCOLS = XInternAtom(dpy, "WM_PROTOCOLS", False);
+    WM_DELETE_WINDOW = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
+
+//                // Define type atoms we will accept for file drop
+    typesWeAccept[0] = XInternAtom(dpy, "text/uri-list", False);
+    typesWeAccept[1] = XInternAtom(dpy, "UTF8_STRING", False);
+    typesWeAccept[2] = XInternAtom(dpy, "TEXT", False);
+    typesWeAccept[3] = XInternAtom(dpy, "STRING", False);
+    typesWeAccept[4] = XInternAtom(dpy, "text/plain;charset=utf-8", False);
+    typesWeAccept[5] = XInternAtom(dpy, "text/plain", False);
+
+    wind = XCreateSimpleWindow(dpy, RootWindow(dpy, 0), 0, 0, 100, 100, 1,
+                               0, 0);
+    if (wind == 0){
+        fprintf(stderr, "failed XCreateSimpleWindow\n");
+        exit(-1);
+    }
+
+    // Set window title
+    if (XStoreName(dpy, wind, procStr) == 0){
+        fprintf(stderr, "failed XStoreName\n");
+        exit(-1);
+    }
+
+    // Add XdndAware property
+    int xdndVersion = 5;
+    XChangeProperty(dpy, wind, XdndAware,
+                    XA_ATOM, 32, PropModeReplace,
+                    (void *)&xdndVersion, 1);
+
+
+
+    // xclient 的逻辑 模拟拖拽 无状态机版本
+    // 模拟拖拽：Find window
+    Window targetWindow = getWindowPointerIsOver(dpy, DefaultRootWindow(dpy),
+                                                 x, y, 0, 0);
+    if (targetWindow == None){
+        printf("目标窗口未找到\n");
+        return FALSE;
+    }
+
+
+    // Claim ownership of Xdnd selection
+    XSetSelectionOwner(dpy, XdndSelection, wind, CurrentTime);
+
+    // Send XdndEnter message
+    printf("%s: sending XdndEnter to target window 0x%lx\n",
+           procStr, targetWindow);
+    // TODO xdndVersion 先固定5
+    sendXdndEnter(dpy, 5, wind, targetWindow);
+
+
+    // Send XdndPosition message
+    printf("%s: sending XdndPosition to target window 0x%lx\n",
+           procStr, targetWindow);
+    sendXdndPosition(dpy, wind, targetWindow, CurrentTime,
+                     100, 100);
+
+
+
+//                XNextEvent(dpy, &event);
+//                while(event.type != ClientMessage || event.xclient.message_type != XdndStatus){
+//                    printf("event.type is %d\n",event.type);
+//                    XNextEvent(dpy, &event);
+//                }
+    // Check if target will accept drop
+//                if ((event.xclient.data.l[1] & 0x1) != 1) {
+//                    // Won't accept, break exchange and wipe state
+//                    printf("%s: sending XdndLeave message to target window "
+//                           "as it won't accept drop\n", procStr);
+//                    sendXdndLeave(dpy, wind, targetWindow);
+//                    continue;
+//                }
+
+
+    // 模拟拖拽：Send XdndDrop message
+    printf("模拟拖拽: sending XdndDrop to target window：0x%lx\n",targetWindow);
+    // TODO 具体drop到的位置发生的事件
+    sendXdndDrop(dpy, wind, targetWindow);
+    // 模拟拖拽：Add data to the target window
+    int havaSendSelectionNotify = 0;
+    int havaXdndFinished = 0;
+//    pthread_t t;
+//    struct XdndEve *arg = (struct XdndEve*)malloc(sizeof(struct XdndEve));
+//    arg->target = wind;
+//    arg->source = targetWindow;
+//    arg->disp = dpy;
+
+//    int res = pthread_create(&t, NULL, threadFunXdndFinished, (void*)arg);
+//    if (res != 0) {
+//        printf("线程创建失败");
+//        return 0;
+//    }
+
+    x11_fd = ConnectionNumber(dpy);
+    fd_set in_fds;
+    struct timeval tv;
+
+    while (!havaXdndFinished || !havaSendSelectionNotify ){
+
+        FD_ZERO(&in_fds);
+        FD_SET(x11_fd, &in_fds);
+        tv.tv_usec = 0;
+        tv.tv_sec = 5;
+        if(!XPending(dpy)){ // 检查队列中是否有元素
+            int num_ready_fds = select(x11_fd + 1, &in_fds, NULL, NULL, &tv);
+            printf("num_ready_fds: %d\n",num_ready_fds);
+            if(num_ready_fds <= 0) {
+                printf("超时num_ready_fds: %d 超时：%ld\n",num_ready_fds,tv.tv_sec);
+                break;
+            }
+        }
+
+        XNextEvent(dpy, &event);
+        printf("模拟拖拽: 收到了事件event.type %d\n",event.type);
+        switch (event.type) {
+            case SelectionRequest:
+                printf("模拟拖拽: event have received SelectionRequest event.type is %d\n",event.type);
+                printf("模拟拖拽: sending SelectionNotify to target window\n");
+                sendSelectionNotify(dpy, &event.xselectionrequest,
+                                    path);
+                havaSendSelectionNotify = 1;
+                break;
+            case ClientMessage:
+                // Check for XdndStatus message
+                if (event.xclient.message_type == XdndStatus) {
+                    // Check if target will accept drop
+                    if ((event.xclient.data.l[1] & 0x1) != 1) {
+                        // Won't accept, break exchange and wipe state
+                        printf("模拟拖拽: sending XdndLeave message to target window "
+                               "as it won't accept drop\n");
+                        sendXdndLeave(dpy, wind, targetWindow);
+                        havaXdndFinished = 1;
+                        //break;
+                    }
+                }
+                else if(event.xclient.message_type == XdndFinished) {
+                    printf("received XdndFinished\n");
+                    //XSync(dpy,TRUE);
+                    havaXdndFinished = 1;
+                }
+                break;
+            default:
+                return FALSE;
+        }
+    }
+    stopSendFinishedToMySelf = 1;
+
+    XSync(dpy,TRUE);
+    XClearWindow(dpy, wind);
+    XFlush(dpy);
+//                XNextEvent(dpy, &event);
+//                    while(event.type != SelectionRequest){
+//                        printf("event.type is %d\n",event.type);
+//                        XNextEvent(dpy, &event);
+//                    }
+//                    printf("模拟拖拽: event have found SelectionRequest event.type is %d\n",event.type);
+//                    sendSelectionNotify(dpy, &event.xselectionrequest,
+//                                        path);
+
+//                XNextEvent(dpy, &event);
+//                while(event.type != ClientMessage || event.xclient.message_type != XdndFinished){
+//                    printf("event.type is %d\n",event.type);
+//                    XNextEvent(dpy, &event);
+//                }
+
+    // Xserver 逻辑结束
+    XDestroyWindow(dpy,wind);
+    XCloseDisplay(dpy);
+
+    return TRUE;
+}
 
 int main(int argc, char **argv) {
+
+    // 获取参数
+    absolutePathPrefix = argv[1];
+
     DBusConnection *conn;
     int ret;
 
@@ -267,8 +504,8 @@ int main(int argc, char **argv) {
                                       DBUS_TYPE_STRING, &req,
                                       DBUS_TYPE_INVALID)) {
                 printf("参数解析成功 req 信息：%s\n",req);
-                char *params = (char *) malloc(strlen("/mnt/hgfs/") + strlen(req));
-                sprintf(params, "%s%s", "/mnt/hgfs/", req);
+                char *params = (char *) malloc(strlen(absolutePathPrefix) + strlen(req));
+                sprintf(params, "%s%s", absolutePathPrefix, req);
                 // 通过参数构建出所需内容
                 int err = sscanf(params,"%s %d %d",path,&x,&y);
                 if(err == -1){
@@ -276,188 +513,11 @@ int main(int argc, char **argv) {
                     exit(-1);
                 }
                 printf("路径：%s 坐标：%d %d\n",path,x,y);
+
+
                 // x 相关逻辑开始
+                if(!XLogic(path,x,y)) break;
 
-                Display *dpy = XOpenDisplay(NULL);
-                const char *procStr = "Stuart";
-                Window wind;
-                XEvent event;
-                // Define atoms
-                XdndAware = XInternAtom(dpy, "XdndAware", False);
-                XA_ATOM = XInternAtom(dpy, "XA_ATOM", False);
-                XdndEnter = XInternAtom(dpy, "XdndEnter", False);
-                XdndPosition = XInternAtom(dpy, "XdndPosition", False);
-                XdndActionCopy = XInternAtom(dpy, "XdndActionCopy", False);
-                XdndLeave = XInternAtom(dpy, "XdndLeave", False);
-                XdndStatus = XInternAtom(dpy, "XdndStatus", False);
-                XdndDrop = XInternAtom(dpy, "XdndDrop", False);
-                XdndSelection = XInternAtom(dpy, "XdndSelection", False);
-                XDND_DATA = XInternAtom(dpy, "XDND_DATA", False);
-                XdndTypeList = XInternAtom(dpy, "XdndTypeList", False);
-                XdndFinished = XInternAtom(dpy, "XdndFinished", False);
-                WM_PROTOCOLS = XInternAtom(dpy, "WM_PROTOCOLS", False);
-                WM_DELETE_WINDOW = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
-
-//                // Define type atoms we will accept for file drop
-                typesWeAccept[0] = XInternAtom(dpy, "text/uri-list", False);
-                typesWeAccept[1] = XInternAtom(dpy, "UTF8_STRING", False);
-                typesWeAccept[2] = XInternAtom(dpy, "TEXT", False);
-                typesWeAccept[3] = XInternAtom(dpy, "STRING", False);
-                typesWeAccept[4] = XInternAtom(dpy, "text/plain;charset=utf-8", False);
-                typesWeAccept[5] = XInternAtom(dpy, "text/plain", False);
-
-//                // Get screen dimensions
-//                screen = DefaultScreen(dpy);
-//                screenWidth = DisplayWidth(dpy, screen);
-//                screenHeight = DisplayHeight(dpy, screen);
-//                printf("%s: screen width: %d, screen height: %d\n", procStr, screenWidth, screenHeight);
-
-                // Define colours
-//                unsigned long red = 0xFF << 16;
-//                unsigned long blue = 0xFF;
-//                unsigned long white = WhitePixel(dpy, screen);
-//                unsigned long green = 0xFF << 8; // Just green component
-
-                wind = XCreateSimpleWindow(dpy, RootWindow(dpy, 0), 0, 0, 100, 100, 1,
-                                           0, 0);
-                if (wind == 0){
-                    fprintf(stderr, "failed XCreateSimpleWindow\n");
-                    exit(-1);
-                }
-
-                // Set window title
-                if (XStoreName(dpy, wind, procStr) == 0){
-                    fprintf(stderr, "failed XStoreName\n");
-                    exit(-1);
-                }
-                // Set events we are interested in
-//                if (XSelectInput(dpy, wind, PointerMotionMask | KeyPressMask | KeyReleaseMask |
-//                                             ButtonPressMask | ButtonReleaseMask | ExposureMask |
-//                                             EnterWindowMask | LeaveWindowMask) == 0){
-//                    fprintf(stderr, "failed XSelectInput XSendEvent \n");
-//                    exit(-1);
-//                }
-
-                // Add XdndAware property
-                int xdndVersion = 5;
-                XChangeProperty(dpy, wind, XdndAware,
-                                XA_ATOM, 32, PropModeReplace,
-                                (void *)&xdndVersion, 1);
-
-//                // Set WM_PROTOCOLS to add WM_DELETE_WINDOW atom so we can end app gracefully
-//                XSetWMProtocols(dpy, wind, &WM_DELETE_WINDOW, 1);
-
-                // Show window by mapping it
-//                if (XMapWindow(dpy, wind) == 0){
-//                    fprintf(stderr, "failed XMapWindow XSendEvent \n");
-//                    exit(-1);
-//                }
-
-
-
-                // xclient 的逻辑 模拟拖拽 无状态机版本
-                // 模拟拖拽：Find window
-                Window targetWindow = getWindowPointerIsOver(dpy, DefaultRootWindow(dpy),
-                                                             x, y, 0, 0);
-                if (targetWindow == None){
-                    printf("目标窗口未找到\n");
-                    break;
-                }
-
-
-
-
-                // Claim ownership of Xdnd selection
-                XSetSelectionOwner(dpy, XdndSelection, wind, CurrentTime);
-
-                // Send XdndEnter message
-                printf("%s: sending XdndEnter to target window 0x%lx\n",
-                       procStr, targetWindow);
-                // TODO xdndVersion 先固定5
-                sendXdndEnter(dpy, 5, wind, targetWindow);
-
-
-                // Send XdndPosition message
-                printf("%s: sending XdndPosition to target window 0x%lx\n",
-                       procStr, targetWindow);
-                sendXdndPosition(dpy, wind, targetWindow, CurrentTime,
-                                 100, 100);
-
-
-
-//                XNextEvent(dpy, &event);
-//                while(event.type != ClientMessage || event.xclient.message_type != XdndStatus){
-//                    printf("event.type is %d\n",event.type);
-//                    XNextEvent(dpy, &event);
-//                }
-                // Check if target will accept drop
-//                if ((event.xclient.data.l[1] & 0x1) != 1) {
-//                    // Won't accept, break exchange and wipe state
-//                    printf("%s: sending XdndLeave message to target window "
-//                           "as it won't accept drop\n", procStr);
-//                    sendXdndLeave(dpy, wind, targetWindow);
-//                    continue;
-//                }
-
-
-                // 模拟拖拽：Send XdndDrop message
-                printf("模拟拖拽: sending XdndDrop to target window：0x%lx\n",targetWindow);
-                // TODO 具体drop到的位置发生的事件
-                sendXdndDrop(dpy, wind, targetWindow);
-                // 模拟拖拽：Add data to the target window
-                printf("模拟拖拽: sending SelectionNotify to target window\n");
-                int havaSendSelectionNotify = 0;
-                int havaXdndFinished = 0;
-                while (!havaXdndFinished || !havaSendSelectionNotify ){
-                    XNextEvent(dpy, &event);
-                    switch (event.type) {
-                        case SelectionRequest:
-                            printf("模拟拖拽: event have found SelectionRequest event.type is %d\n",event.type);
-                            sendSelectionNotify(dpy, &event.xselectionrequest,
-                                                path);
-                            havaSendSelectionNotify = 1;
-                            break;
-                        case ClientMessage:
-                            // Check for XdndStatus message
-                            if (event.xclient.message_type == XdndStatus) {
-                                // Check if target will accept drop
-                                if ((event.xclient.data.l[1] & 0x1) != 1) {
-                                    // Won't accept, break exchange and wipe state
-                                    printf("%s: sending XdndLeave message to target window "
-                                           "as it won't accept drop\n", procStr);
-                                    sendXdndLeave(dpy, wind, targetWindow);
-                                    break;
-                                }
-                            }
-                            else if(event.xclient.message_type == XdndFinished) {
-                                printf("received XdndFinished\n");
-                                havaXdndFinished = 1;
-                            }
-                            break;
-                    }
-                }
-
-
-                XClearWindow(dpy, wind);
-                XFlush(dpy);
-//                XNextEvent(dpy, &event);
-//                    while(event.type != SelectionRequest){
-//                        printf("event.type is %d\n",event.type);
-//                        XNextEvent(dpy, &event);
-//                    }
-//                    printf("模拟拖拽: event have found SelectionRequest event.type is %d\n",event.type);
-//                    sendSelectionNotify(dpy, &event.xselectionrequest,
-//                                        path);
-
-//                XNextEvent(dpy, &event);
-//                while(event.type != ClientMessage || event.xclient.message_type != XdndFinished){
-//                    printf("event.type is %d\n",event.type);
-//                    XNextEvent(dpy, &event);
-//                }
-
-                // Xserver 逻辑结束
-                XDestroyWindow(dpy,wind);
-                XCloseDisplay(dpy);
 
                 // send reply
                 DBusMessage *reply;
